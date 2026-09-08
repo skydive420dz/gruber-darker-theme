@@ -39,7 +39,9 @@
           (let ((plist (cadr branch)))
             (should (zerop (% (length plist) 2)))
             (cl-loop for (key value) on plist by #'cddr
-                     do (should (memq key attributes)))
+                     do (should (memq key attributes))
+                     when (memq key '(:foreground :background))
+                     do (should (or (stringp value) (eq value 'unspecified))))
             (face-spec-set 'gruber-test-face `((t ,plist)))))))))
 
 (ert-deftest gruber-selection-and-buffer-backgrounds-differ ()
@@ -116,5 +118,32 @@
       (should solaire-mode)
       (should (assq 'default face-remapping-alist))
       (solaire-mode -1))))
+
+
+(ert-deftest gruber-explicit-color-corrections ()
+  (dolist (entry '((fringe "#453d41" "#181818")
+                   (region "#e4e4ef" "#484848")
+                   (secondary-selection "#e4e4ef" "#484848")
+                   (diff-removed "#ff4f58" "#181818")
+                   (diff-added "#73c936" "#181818")
+                   (highlight "#e4e4ef" "#282828")
+                   (highlight-current-line-face "#e4e4ef" "#282828")
+                   (tab-bar-tab "#ffdd33" "#282828")
+                   (tab-bar-tab-inactive "#95a99f" "#181818")))
+    (let ((attrs (gruber-test-attributes (car entry))))
+      (should (equal (plist-get attrs :foreground) (nth 1 entry)))
+      (should (equal (plist-get attrs :background) (nth 2 entry)))
+      (should-not (plist-member attrs :inherit))))
+  (require 'diff-mode)
+  (require 'tab-bar)
+  (with-temp-buffer
+    (insert "--- a/example\n+++ b/example\n@@ -1 +1 @@\n-old\n+new\n")
+    (diff-mode)
+    (font-lock-ensure)
+    (dolist (entry '(("-old" diff-removed) ("+new" diff-added)))
+      (goto-char (point-min))
+      (search-forward (car entry))
+      (let ((face (get-text-property (1- (point)) 'face)))
+        (should (memq (cadr entry) (if (listp face) face (list face))))))))
 
 ;;; test-theme.el ends here
